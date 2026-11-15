@@ -1,0 +1,34 @@
+[importlinter]
+root_package = mindful
+include_external_packages = True
+exclude_type_checking_imports = False
+
+[importlinter:contract:layers]
+name = Dependencies point inward
+type = layers
+layers =
+    mindful.bootstrap
+    mindful.ui | mindful.integration
+    mindful.application
+    mindful.core
+
+[importlinter:contract:host-independence]
+name = Core and application are independent of Anki and Qt
+type = forbidden
+source_modules =
+    mindful.core
+    mindful.application
+forbidden_modules =
+    anki
+    aqt
+    PyQt5
+    PyQt6
+    PySide2
+    PySide6
+allow_indirect_imports = False
+
+[importlinter:contract:acyclic-siblings]
+name = Sibling modules and packages are acyclic
+type = acyclic_siblings
+ancestors =
+    mindful
