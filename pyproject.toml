@@ -34,7 +34,8 @@ ignore = [
     "TC002",
     "TC003",
     "UP037",
-    "COM812"
+    "COM812",
+    "TID252", # The add-on must use relative imports so numeric AnkiWeb directory names work
 ]
 
 [tool.ruff.lint.pydocstyle]

@@ -1,6 +1,40 @@
 # Mindful
 An Anki Add-On to Enable Learning Card Management in Anki
 
+## Editing a note
+
+1. Open the Anki Browser and select exactly one note. In card mode, select one
+   or more cards that belong to the same note.
+2. Choose **Notes > Mindful: Edit Note...**, right-click the table and choose
+   **Mindful: Edit Note...**, or press `Ctrl+Shift+O` (`Cmd+Shift+O` on macOS).
+   The action is disabled when no note or several notes are selected.
+3. Edit the fields and click **Save**.
+
+The editor shows every field of the note, in the note type's order. Each field is
+labeled **Markdown** or **HTML**:
+
+- **Markdown**: the field uses only bold, italic, inline code, links, images,
+  lists and line breaks, and converts back to the same content. Saving writes
+  standard Anki HTML.
+- **HTML**: the field contains other markup, such as colors, tables or code
+  blocks. It is shown and saved as raw HTML, exactly as typed. Hover over the
+  badge for the reason.
+
+Cloze deletions (`{{c1::answer::hint}}`), sound tags (`[sound:file.mp3]`),
+MathJax (`\(...\)` and `\[...\]`) and image file names stay unchanged as editable
+text. Notes are never stored as Markdown.
+
+Saving writes only the fields you changed, as one step you can reverse with
+**Edit > Undo** in Anki. If the note was changed elsewhere or deleted after you
+opened it, nothing is saved and your edits stay in the editor. Closing the editor,
+opening another note, or closing the Browser with unsaved edits asks before
+discarding them.
+
+To change the shortcut, open **Tools > Add-ons**, select Mindful and click
+**Config**. Set `edit_note_shortcut` to another shortcut, such as `Ctrl+Alt+E`,
+or to `""` to remove it. Invalid values fall back to `Ctrl+Shift+O`. The change
+applies to Browser windows opened afterwards.
+
 ## Development setup
 
 Install [uv](https://docs.astral.sh/uv/) and Python 3.13, then run from the

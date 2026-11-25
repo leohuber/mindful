@@ -156,7 +156,9 @@ The read-only audit of a standalone collection copy found 15,689 Markdown-mode f
 | LangFRVerbNonConj | 1,600 | 0 |
 | Math | 372 | 18 |
 
-The most frequent HTML fallbacks were attributes on `code` (2,725 fields), `pre` elements (938), attributes on `div` (32), and attributes on `img` (18). Two fields had unsupported list content and two failed the round-trip comparison. Code-related markup accounts for 3,663 of the 3,717 fallbacks; whether to extend the subset requires agreement before continuing.
+The most frequent HTML fallbacks were attributes on `code` (2,725 fields), `pre` elements (938), attributes on `div` (32), and attributes on `img` (18). Two fields had unsupported list content and two failed the round-trip comparison. Code-related markup accounts for 3,663 of the 3,717 fallbacks. Decision: keep the planned subset for this change. These fields open in HTML mode, which the spec allows and which is lossless. Supporting attributed `code` and `pre` blocks can be proposed as a follow-up change.
+
+Ruff's `TID252` rule (no parent-relative imports) is disabled in `pyproject.toml`, because `application`, `integration`, `ui` and `bootstrap` must use relative imports such as `..core` so that numeric AnkiWeb add-on directory names work.
 
 ## Migration Plan
 

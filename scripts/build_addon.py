@@ -11,10 +11,19 @@ ADDON_FILES = (
     "__init__.py",
     "bootstrap.py",
     "core/__init__.py",
+    "core/markdown_fields.py",
+    "core/note_draft.py",
+    "core/shortcuts.py",
     "application/__init__.py",
+    "application/note_editing.py",
     "integration/__init__.py",
+    "integration/note_store.py",
     "ui/__init__.py",
+    "ui/browser_action.py",
+    "ui/note_editor.py",
     "manifest.json",
+    "config.json",
+    "config.md",
 )
 
 
