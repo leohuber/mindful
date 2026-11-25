@@ -282,7 +282,7 @@ with ZipFile(archive_path) as archive:
         path = PurePosixPath(entry.filename)
         if path.is_absolute() or ".." in path.parts or forbidden.intersection(path.parts):
             sys.exit(f"Unsafe or excluded add-on entry: {entry.filename}")
-        if path.name in {"config.json", "meta.json", ".env"} or path.suffix in {".pyc", ".pyo"}:
+        if path.name in {"meta.json", ".env"} or path.suffix in {".pyc", ".pyo"}:
             sys.exit(f"Excluded add-on entry: {entry.filename}")
         if not stat.S_ISREG(entry.external_attr >> 16):
             sys.exit(f"The add-on entry is not a regular file: {entry.filename}")

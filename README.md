@@ -215,7 +215,8 @@ request an upgrade explicitly:
 ./install.sh --upgrade --addons-dir "/absolute/path/to/Anki2/addons21"
 ```
 
-The installer preserves `meta.json`, `config.json`, and `user_files/`, removes
+The installer preserves `meta.json` (where Anki stores your configuration
+changes) and `user_files/`, installs the new default `config.json`, removes
 obsolete packaged code, and reports a complete backup under the data folder's
 `mindful-backups/`, outside `addons21`. Keep Anki closed and do not change the
 installation until the installer finishes. Restart Anki afterward.
@@ -250,7 +251,7 @@ and confirm Mindful is enabled without errors.
 
 Close Anki, place a sample file in `addons21/mindful/user_files/`, and run the
 installer again with `--upgrade` and the same `--addons-dir`. Check that the
-sample file and any `meta.json` or `config.json` are unchanged and that the
+sample file and any `meta.json` are unchanged and that the
 reported backup is outside `addons21`. Restart and check enablement in both
 profiles again. Close Anki and compare the same collection tables with the
 baseline. Repeat with each supported Desktop release being verified. Never use

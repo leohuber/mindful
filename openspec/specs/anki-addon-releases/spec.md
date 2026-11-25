@@ -119,7 +119,7 @@ The installer SHALL validate its sibling archive and destination before installa
 
 ### Requirement: Explicit upgrades preserve user data and recovery state
 
-The installer SHALL refuse an existing Mindful installation unless `--upgrade` is supplied. An explicit upgrade SHALL retain a complete backup outside `addons21`, preserve existing `meta.json`, `config.json`, and `user_files/`, and replace packaged code without retaining stale modules. It SHALL not modify other add-ons or profile collections.
+The installer SHALL refuse an existing Mindful installation unless `--upgrade` is supplied. An explicit upgrade SHALL retain a complete backup outside `addons21`, preserve existing `meta.json` (which holds the user's configuration changes) and `user_files/`, and replace packaged code, including the default `config.json`, without retaining stale modules. It SHALL not modify other add-ons or profile collections.
 
 #### Scenario: Refuse an implicit overwrite
 - **GIVEN** the destination already contains Mindful

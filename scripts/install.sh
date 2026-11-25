@@ -141,7 +141,7 @@ validate_archive() {
         esac
         lowered="$(printf '%s' "${entry%/}" | tr '[:upper:]' '[:lower:]')"
         case "$lowered" in
-            meta.json|config.json|user_files|user_files/*) die "The archive contains reserved user data: $entry" ;;
+            meta.json|user_files|user_files/*) die "The archive contains reserved user data: $entry" ;;
         esac
         case "$seen" in
             *$'\n'"$lowered"$'\n'*) die "The archive contains duplicate or ambiguous entries: $entry" ;;
@@ -235,7 +235,7 @@ if (( existing )); then
     check_tree "$backup/mindful"
     compare_trees "$target" "$backup/mindful" || die "The backup does not match the existing installation."
     backup_verified=1
-    for preserved in meta.json config.json user_files; do
+    for preserved in meta.json user_files; do
         if [[ -e "$backup/mindful/$preserved" ]]; then
             cp -pR "$backup/mindful/$preserved" "$stage/$preserved" \
                 || die "Could not preserve $preserved."
