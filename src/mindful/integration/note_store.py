@@ -12,11 +12,24 @@ from ..application.note_editing import NoteChangedError, NoteDeletedError
 from ..core.note_draft import NoteSnapshot
 
 
-def _snapshot(note: Note) -> NoteSnapshot:
+def snapshot_note(note: Note) -> NoteSnapshot:
+    """Capture a note's current fields and modification time.
+
+    Returns:
+        The stored note snapshot.
+    """
     return NoteSnapshot(int(note.id), int(note.mod), tuple(zip(note.keys(), note.fields, strict=True)))
 
 
-def _get_note(col: Collection, note_id: int) -> Note:
+def get_note(col: Collection, note_id: int) -> Note:
+    """Load a note from the collection.
+
+    Returns:
+        The loaded note.
+
+    Raises:
+        NoteDeletedError: If the note no longer exists.
+    """
     try:
         return col.get_note(NoteId(note_id))
     except NotFoundError as error:
@@ -42,7 +55,7 @@ class CollectionNoteStore:
         Returns:
             The note's snapshot.
         """
-        return _snapshot(_get_note(self._col(), note_id))
+        return snapshot_note(get_note(self._col(), note_id))
 
     def save(
         self,
@@ -55,13 +68,13 @@ class CollectionNoteStore:
         saved: list[NoteSnapshot] = []
 
         def op(col: Collection) -> OpChanges:
-            note = _get_note(col, expected.note_id)
-            if _snapshot(note) != expected:
+            note = get_note(col, expected.note_id)
+            if snapshot_note(note) != expected:
                 raise NoteChangedError
             for index, html in changes.items():
                 note.fields[index] = html
             result = col.update_note(note)
-            saved.append(_snapshot(_get_note(col, expected.note_id)))
+            saved.append(snapshot_note(get_note(col, expected.note_id)))
             return result
 
         CollectionOp(self._mw, op).success(lambda _changes: on_success(saved[0])).failure(on_failure).run_in_background()

@@ -4,6 +4,7 @@ from aqt import mw
 
 from .application.note_editing import NoteEditing
 from .core.shortcuts import resolve_edit_note_shortcut
+from .integration.card_preview import CollectionCardPreview
 from .integration.note_store import CollectionNoteStore
 from .ui.browser_action import BrowserNoteAction
 
@@ -16,4 +17,5 @@ def initialize() -> None:
         return
     main_window = mw
     editing = NoteEditing(CollectionNoteStore(main_window))
-    BrowserNoteAction(editing, lambda: resolve_edit_note_shortcut(main_window.addonManager.getConfig(_ADDON_MODULE))).register()
+    preview = CollectionCardPreview(main_window)
+    BrowserNoteAction(editing, preview, lambda: resolve_edit_note_shortcut(main_window.addonManager.getConfig(_ADDON_MODULE))).register()

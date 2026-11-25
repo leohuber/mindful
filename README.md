@@ -24,6 +24,18 @@ Cloze deletions (`{{c1::answer::hint}}`), sound tags (`[sound:file.mp3]`),
 MathJax (`\(...\)` and `\[...\]`) and image file names stay unchanged as editable
 text. Notes are never stored as Markdown.
 
+The card preview on the right updates as you edit, before saving. Drag the divider
+to resize it, choose a card from the **Card** list, and use **Front** and **Back**
+to switch sides. Entries labeled **preview only** are templates or clozes without
+a saved card; the label does not guarantee that saving will create one. Images
+and MathJax render in the preview, and sound can be played with its play button.
+Editing does not automatically restart audio.
+
+The preview never saves edits or creates cards. Card-specific context and add-on
+rendering can differ from review, and legacy LaTeX (`[latex]`, `[$]`, `[$$]`)
+is not rendered in the live preview. If a preview is unavailable, the fields and
+your unsaved edits remain available.
+
 Saving writes only the fields you changed, as one step you can reverse with
 **Edit > Undo** in Anki. If the note was changed elsewhere or deleted after you
 opened it, nothing is saved and your edits stay in the editor. Closing the editor,

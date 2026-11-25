@@ -80,3 +80,12 @@ class NoteDraft:
             A mapping of field index to new stored HTML.
         """
         return {index: draft.to_html() for index, draft in enumerate(self.fields) if draft.changed}
+
+    def preview_html(self) -> tuple[str, ...]:
+        """Build the field HTML represented by the current draft.
+
+        Returns:
+            Save-ready HTML for changed fields and the original HTML for unchanged fields.
+        """
+        changes = self.changed_html()
+        return tuple(changes.get(index, html) for index, html in enumerate(self.snapshot.field_html))
