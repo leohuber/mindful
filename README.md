@@ -73,11 +73,12 @@ matching Anki and aqt packages; the add-on uses Anki's own runtime when installe
 
 ## Version policy
 
-Releases start from a development version, `X.Y.Z.devN`, and use `X.Y.Z` for
-the stable release and `vX.Y.Z` for its tag. After publication, the next patch,
-minor, or major development cycle starts at `X.Y.Z.dev0`. Before the first
-release, the project and lockfile must both contain `0.1.0.dev0`, rather than
-the stable `0.1.0`.
+Releases start from a development version, `X.Y.Z.devN`. At release time,
+choose patch, minor, or major relative to the highest stable `vX.Y.Z` tag on
+origin. The next development version is automatically the released version
+with its patch incremented and `.dev0` appended. For example, after `v0.5.0`,
+choosing patch releases `v0.5.1` and starts `0.5.2.dev0`, even if the current
+development version is `0.6.0.dev0`. A stable origin tag is required.
 
 Check the current project version and lockfile consistency from the repository
 root:
@@ -94,26 +95,62 @@ installer with disposable Anki directories. Start from a clean `main` that
 matches `origin/main`, with a development version, no existing release tag,
 and an authenticated GitHub CLI. Git, uv, gh, zip, and unzip are required.
 
-Preview the release, then select the next `patch`, `minor`, or `major`
-development cycle and confirm interactively:
+Preview the available release versions, then choose `patch`, `minor`, or
+`major` and confirm interactively:
 
 ```sh
-scripts/release.sh --dry-run --next-bump patch
-scripts/release.sh --next-bump patch
+scripts/release.sh --dry-run
+scripts/release.sh --bump patch
 ```
+
+Omit `--bump` to select the release type interactively. Use
+`--dry-run --bump patch` to preview one candidate without releasing.
 
 The script runs the quality gates in an isolated worktree, publishes an
 annotated tag and two verified GitHub assets, then pushes the next development
-commit. The `.ankiaddon` is for direct installation and manual
+commit and fast-forwards the original checkout if it is still clean and
+unchanged. It verifies that local `main` and origin both point to the
+development commit. If synchronization cannot be completed, the release
+remains published and the script retains the release area and prints the
+expected commit and recovery guidance.
+
+The `.ankiaddon` is for direct installation and manual
 [AnkiWeb upload](https://ankiweb.net/shared/addons); the ZIP is the macOS
-installer bundle. It leaves the original checkout untouched. Verify that it is
-clean and still on `main`, then fast-forward it explicitly:
+installer bundle.
+
+After inspecting any local changes and confirming that origin still points to
+the reported development commit, synchronize a clean `main` manually:
 
 ```sh
 git status --short --branch
+git ls-remote origin refs/heads/main
 git fetch origin main
-git merge --ff-only FETCH_HEAD
+git merge --ff-only "<reported-development-commit>"
 ```
+
+### Retained release worktrees
+
+At startup the script lists retained release worktrees. It offers to remove an
+identified, inactive managed worktree and its release area only after a separate
+confirmation for that area. This permanently deletes retained assets and may
+discard unpushed commits; inspect and recover anything needed first. A dry run
+lists candidates without removing them. Dirty worktrees are retained.
+
+Older release areas have no ownership marker and are not automatically
+removed. Inspect each reported worktree and its associated release area:
+
+```sh
+git worktree list
+git -C "<reported-worktree>" status --short --branch
+git -C "<reported-worktree>" log -1 --oneline
+```
+
+Confirm no release is using the area, inspect its assets and commits, and
+recover anything needed. Once it is safe to discard, remove that exact
+worktree with `git worktree remove "<reported-worktree>"`; inspect and remove
+only its reported release area separately. Do not force-remove a dirty
+worktree. If the script reports a release lock, first verify no release is
+running and inspect the lock before manually clearing a stale lock.
 
 ### Recovering an interrupted release
 
@@ -174,13 +211,13 @@ verify that `origin/main` still points at the reported stable commit, then use
 the exact non-force push command printed for the retained development commit.
 If no development commit was created, inspect the retained worktree first; its
 HEAD must be the stable commit and its files must be clean. After confirming
-the published state, set the selected version there and inspect the resulting
-diff before committing and pushing:
+the published state, set the next patch development version there and inspect
+the resulting diff before committing and pushing:
 
 ```sh
 cd "$area/worktree"
 git status --short --branch
-next_version=0.1.1.dev0  # Replace with the selected next version.
+next_version=0.1.1.dev0  # Replace with the release's next patch development version.
 uv version "$next_version" --no-sync
 uv lock --check
 git diff -- pyproject.toml uv.lock

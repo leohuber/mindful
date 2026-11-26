@@ -5,7 +5,7 @@ set -euo pipefail
 readonly REPOSITORY="leohuber/mindful"
 readonly BRANCH="main"
 readonly -a REQUIRED_FILES=(
-    pyproject.toml uv.lock scripts/release.sh scripts/build_addon.py
+    pyproject.toml uv.lock scripts/release.sh scripts/release_versions.py scripts/build_addon.py
     scripts/install.sh src/mindful/manifest.json
 )
 
@@ -15,7 +15,14 @@ die() {
 }
 
 usage() {
-    print -- "Usage: scripts/release.sh [--dry-run] [--next-bump patch|minor|major]"
+    print -- "Usage: scripts/release.sh [--dry-run] [--bump patch|minor|major]"
+}
+
+version_candidates() {
+    local remote_tags
+    remote_tags="$(git ls-remote --tags --refs origin)" || die "Cannot query remote tags."
+    print -r -- "$remote_tags" | uv run python scripts/release_versions.py \
+        || die "Cannot determine release versions."
 }
 
 directory_identity() {
@@ -25,6 +32,95 @@ directory_identity() {
     else
         stat -c '%d:%i' "$1"
     fi
+}
+
+release_lock=""
+release_lock_identity=""
+
+release_unlock() {
+    if [[ -n "$release_lock" && -d "$release_lock" && ! -L "$release_lock" ]] \
+        && [[ "$(directory_identity "$release_lock")" == "$release_lock_identity" ]]; then
+        rm -f -- "$release_lock/owner"
+        rmdir -- "$release_lock" || print -u2 -- "Could not remove release lock $release_lock."
+    fi
+}
+
+release_lock_acquire() {
+    release_lock="$common_dir/mindful-release.lock"
+    mkdir -- "$release_lock" 2>/dev/null \
+        || die "Another release or cleanup may be active; inspect $release_lock before removing it."
+    release_lock_identity="$(directory_identity "$release_lock")" || die "Cannot identify the release lock."
+    print -r -- "$$" > "$release_lock/owner" || die "Cannot record the release lock owner."
+}
+
+registered_worktree() {
+    local entry listing
+    listing="$(git -C "$root" worktree list --porcelain -z)" || return 1
+    for entry in "${(@0)listing}"; do
+        [[ "$entry" == "worktree $1" ]] && return 0
+    done
+    return 1
+}
+
+owned_release_area() {
+    local candidate="$1" area="$2" identity="$3" marker
+    [[ "$candidate" == "$area/worktree" && "$candidate" != "$root" ]] || return 1
+    [[ "$area:t" == mindful-release.* && -d "$area" && ! -L "$area" ]] || return 1
+    [[ "$candidate" == "${candidate:A}" && "$area" == "${area:A}" ]] || return 1
+    [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
+    [[ "$(directory_identity "$area")" == "$identity" ]] || return 1
+    marker="$area/.mindful-release-owner"
+    [[ -f "$marker" && ! -L "$marker" ]] || return 1
+    [[ "$(<"$marker")" == $'mindful-release-v1\n'"$repo_identity"$'\n'"$identity" ]] || return 1
+    registered_worktree "$candidate"
+}
+
+offer_retained_cleanup() {
+    local entry candidate area identity answer listing
+    listing="$(git -C "$root" worktree list --porcelain -z)" || die "Cannot list release worktrees."
+    for entry in "${(@0)listing}"; do
+        [[ "$entry" == 'worktree '* ]] || continue
+        candidate="${entry#worktree }"
+        [[ "$candidate" == */mindful-release.*/worktree ]] || continue
+        area="${candidate:h}"
+        print -u2 -- "Retained release worktree: $candidate"
+        print -u2 -- "Release area: $area"
+        if (( dry_run )); then
+            print -u2 -- "Dry run: no cleanup performed."
+            continue
+        fi
+        if [[ ! -d "$area" || -L "$area" ]] \
+            || ! identity="$(directory_identity "$area")" \
+            || ! owned_release_area "$candidate" "$area" "$identity"; then
+            print -u2 -- "Not safely identified as an inactive managed area; inspect it manually."
+            continue
+        fi
+        if [[ ! -t 0 ]]; then
+            print -u2 -- "No terminal available; retained without cleanup."
+            continue
+        fi
+        print -u2 -- "Cleanup removes this area, including retained assets and unpushed commits."
+        read -r "answer?Type 'cleanup' to remove this area, or press Enter to keep it: " || answer=""
+        if [[ "$answer" != cleanup ]]; then
+            print -u2 -- "Retained $area."
+            continue
+        fi
+        if ! owned_release_area "$candidate" "$area" "$identity"; then
+            print -u2 -- "Release area changed; retained $area."
+            continue
+        fi
+        if ! git -C "$root" worktree remove "$candidate"; then
+            print -u2 -- "Could not remove the worktree safely; retained $area."
+            continue
+        fi
+        if [[ -d "$area" && ! -L "$area" && "$area" == "${area:A}" ]] \
+            && [[ "$(directory_identity "$area")" == "$identity" ]]; then
+            rm -rf -- "$area"
+            print -u2 -- "Removed retained release area: $area"
+        else
+            print -u2 -- "Release area changed after worktree removal; inspect $area."
+        fi
+    done
 }
 
 check_origin() {
@@ -66,16 +162,19 @@ while (( $# )); do
     case "$1" in
         --help) usage; exit 0 ;;
         --dry-run) dry_run=1; shift ;;
-        --next-bump)
-            (( $# >= 2 )) || die "--next-bump requires patch, minor, or major."
+        --bump)
+            (( $# >= 2 )) || die "--bump requires patch, minor, or major."
             bump="$2"
+            [[ "$bump" == patch || "$bump" == minor || "$bump" == major ]] \
+                || die "--bump must be patch, minor, or major."
             shift 2
             ;;
+        --next-bump) die "--next-bump is no longer supported; use --bump for the current release." ;;
         *) die "Unknown argument: $1" ;;
     esac
 done
 [[ -z "$bump" || "$bump" == patch || "$bump" == minor || "$bump" == major ]] \
-    || die "--next-bump must be patch, minor, or major."
+    || die "--bump must be patch, minor, or major."
 
 for tool in git uv gh zip unzip zipinfo cmp; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is required."
@@ -92,6 +191,15 @@ git ls-files --error-unmatch -- "${REQUIRED_FILES[@]}" >/dev/null 2>&1 \
 [[ -f scripts/build_addon.py && -f scripts/install.sh && -x scripts/install.sh ]] \
     || die "The add-on builder and executable installer are required."
 
+common_dir="$(git rev-parse --git-common-dir)" || die "Cannot locate the repository Git directory."
+common_dir="$(cd "$common_dir" && pwd -P)" || die "Cannot resolve the repository Git directory."
+repo_identity="$(directory_identity "$common_dir")" || die "Cannot identify the repository Git directory."
+if (( ! dry_run )); then
+    trap release_unlock EXIT
+    release_lock_acquire
+fi
+offer_retained_cleanup
+
 check_origin
 
 original_head="$(git rev-parse HEAD)"
@@ -107,34 +215,53 @@ uv lock --check >/dev/null || die "The lockfile is inconsistent."
 current_version="$(uv version --short)" || die "Could not read the project version."
 [[ "$current_version" =~ '^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$' ]] \
     || die "The current version must be an X.Y.Z.devN development version."
-stable_version="$(uv version --bump stable --dry-run --short)" \
-    || die "Could not preview the stable version."
-[[ "$stable_version" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || die "Invalid stable version."
-tag="v$stable_version"
-check_tag_absent
-check_release_absent
+candidates="$(version_candidates)" || die "Could not calculate release candidates."
+typeset -A release_versions next_versions
+for candidate in "${(@f)candidates}"; do
+    fields=(${=candidate})
+    if [[ "$fields[1]" == baseline ]]; then
+        baseline="$fields[2]"
+    else
+        release_versions[$fields[1]]="$fields[2]"
+        next_versions[$fields[1]]="$fields[3]"
+    fi
+done
 
 if [[ -z "$bump" ]]; then
     if (( dry_run )); then
-        bump=patch
+        [[ -z "$(git status --porcelain --untracked-files=normal)" && "$(git rev-parse HEAD)" == "$original_head" ]] \
+            || die "The working tree or HEAD changed during preflight."
+        print -- "Repository: $repository"
+        print -- "Branch: $BRANCH"
+        print -- "Development version: $current_version"
+        print -- "Latest release: v$baseline"
+        for choice in patch minor major; do
+            print -- "$choice: v${release_versions[$choice]} -> ${next_versions[$choice]}"
+            print -- "  Assets: mindful-${release_versions[$choice]}.ankiaddon, mindful-${release_versions[$choice]}.zip"
+        done
+        exit 0
     else
         [[ -t 0 ]] || die "An interactive terminal is required."
-        print -u2 -- "Choose the next development version: patch, minor, or major."
+        print -u2 -- "Choose the release version: patch, minor, or major."
         read -r "bump?Choice: " || die "No version bump was selected."
         [[ "$bump" == patch || "$bump" == minor || "$bump" == major ]] \
             || die "Choose patch, minor, or major."
     fi
 fi
-next_version="$(uv version --bump "$bump" --bump dev=0 --dry-run --short)" \
-    || die "Could not preview the next development version."
+stable_version="${release_versions[$bump]}"
+next_version="${next_versions[$bump]}"
+tag="v$stable_version"
+check_tag_absent
+check_release_absent
 [[ -z "$(git status --porcelain --untracked-files=normal)" && "$(git rev-parse HEAD)" == "$original_head" ]] \
     || die "The working tree or HEAD changed during preflight."
 
 print -- "Repository: $repository"
 print -- "Branch: $BRANCH"
 print -- "Development version: $current_version"
-print -- "Release version: $stable_version"
-print -- "Next development version: $next_version ($bump)"
+print -- "Latest release: v$baseline"
+print -- "Release version: $stable_version ($bump)"
+print -- "Next development version: $next_version"
 print -- "Tag: $tag"
 print -- "Assets: mindful-$stable_version.ankiaddon, mindful-$stable_version.zip"
 
@@ -157,6 +284,7 @@ stable_commit=""
 dev_commit=""
 release_state="confirmed"
 release_completed=0
+publication_completed=0
 
 report_asset_status() {
     local assets asset name present
@@ -220,12 +348,40 @@ cleanup_release() {
         else
             print -u2 -- "Could not verify the release area for cleanup; retained $work_dir."
         fi
+    elif (( publication_completed )); then
+        print -u2 -- "Published release retained for inspection: $work_dir"
     else
         report_recovery
     fi
+    release_unlock
     exit "$exit_status"
 }
 trap cleanup_release EXIT
+
+checkout_is_unchanged() {
+    local tree_status
+    [[ "$(git -C "$original_root" branch --show-current)" == "$BRANCH" ]] || return 1
+    [[ "$(git -C "$original_root" rev-parse HEAD)" == "$original_head" ]] || return 1
+    tree_status="$(git -C "$original_root" status --porcelain --untracked-files=normal)" || return 1
+    [[ -z "$tree_status" ]]
+}
+
+synchronize_checkout() {
+    local current_remote tree_status
+    checkout_is_unchanged || return 1
+    current_remote="$(git ls-remote --exit-code origin "refs/heads/$BRANCH")" || return 1
+    [[ "${current_remote%%[[:space:]]*}" == "$dev_commit" ]] || return 1
+    git -C "$original_root" fetch origin "$BRANCH" || return 1
+    [[ "$(git -C "$original_root" rev-parse FETCH_HEAD)" == "$dev_commit" ]] || return 1
+    checkout_is_unchanged || return 1
+    git -C "$original_root" merge --ff-only "$dev_commit" || return 1
+    [[ "$(git -C "$original_root" branch --show-current)" == "$BRANCH" ]] || return 1
+    [[ "$(git -C "$original_root" rev-parse HEAD)" == "$dev_commit" ]] || return 1
+    tree_status="$(git -C "$original_root" status --porcelain --untracked-files=normal)" || return 1
+    [[ -z "$tree_status" ]] || return 1
+    current_remote="$(git ls-remote --exit-code origin "refs/heads/$BRANCH")" || return 1
+    [[ "${current_remote%%[[:space:]]*}" == "$dev_commit" ]]
+}
 
 validate_version_change() {
     uv run python - "$1" "$2" <<'PY'
@@ -315,6 +471,8 @@ PY
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/mindful-release.XXXXXXXX")" || die "Could not create a release area."
 work_dir="$(cd "$work_dir" && pwd -P)" || die "Could not resolve the release area."
 work_identity="$(directory_identity "$work_dir")" || die "Could not identify the release area."
+print -r -- $'mindful-release-v1\n'"$repo_identity"$'\n'"$work_identity" > "$work_dir/.mindful-release-owner" \
+    || die "Could not identify the owned release area."
 worktree="$work_dir/worktree"
 git -C "$original_root" worktree add --detach "$worktree" "$original_head" \
     || die "Could not create the isolated release worktree."
@@ -365,6 +523,9 @@ release_state="both assets validated"
 check_origin
 remote_head="$(git ls-remote --exit-code origin "refs/heads/$BRANCH")" || die "Cannot recheck origin/$BRANCH."
 [[ "${remote_head%%[[:space:]]*}" == "$original_head" ]] || die "origin/$BRANCH changed during release preparation."
+updated_candidates="$(version_candidates)" || die "Cannot recheck the release baseline."
+updated_baseline="${${(@f)updated_candidates}[1]#baseline }"
+[[ "$updated_baseline" == "$baseline" ]] || die "The latest release tag changed; reconsider the release."
 check_tag_absent
 check_release_absent
 git tag -a "$tag" "$stable_commit" -m "Release $tag" || die "Could not create the annotated release tag."
@@ -398,13 +559,22 @@ remote_head="$(git ls-remote --exit-code origin "refs/heads/$BRANCH")" || die "C
 [[ "${remote_head%%[[:space:]]*}" == "$stable_commit" ]] || die "origin/$BRANCH moved after publication."
 git push origin "${dev_commit}:refs/heads/$BRANCH" || die "The next-development push failed or its outcome is uncertain."
 release_state="next-development commit pushed"
-release_completed=1
+publication_completed=1
+
+if synchronize_checkout; then
+    release_completed=1
+    print -- "Local $BRANCH and origin/$BRANCH match $dev_commit."
+else
+    print -u2 -- "Release published, but local checkout synchronization is incomplete; no forced update was performed."
+    print -u2 -- "Inspect local changes and the remote before fast-forwarding:"
+    print -u2 -- "  git status --short --branch"
+    print -u2 -- "  git ls-remote origin refs/heads/$BRANCH"
+    print -u2 -- "If still clean on $BRANCH and origin still points to $dev_commit, run:"
+    print -u2 -- "  git fetch origin $BRANCH"
+    print -u2 -- "  git merge --ff-only $dev_commit"
+fi
 
 print -- "Released $tag and started $next_version."
 print -- "Standalone archive: https://github.com/$repository/releases/download/$tag/$addon_name"
 print -- "macOS installer ZIP: https://github.com/$repository/releases/download/$tag/$zip_name"
 print -- "Upload only the standalone archive manually at https://ankiweb.net/shared/addons."
-print -- "The caller's checkout was not changed. Verify it is clean and still on $BRANCH, then fast-forward explicitly:"
-print -- "  git status --short --branch"
-print -- "  git fetch origin $BRANCH"
-print -- "  git merge --ff-only FETCH_HEAD"
