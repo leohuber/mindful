@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Lets users open a single Anki note in Mindful's editor, edit its fields as Markdown where this is lossless or as HTML otherwise, and save those edits safely back to the collection.
+Lets users open a single Anki note in Mindful's editor, edit its fields as HTML shown in a readable display format, and save those edits safely back to the collection.
 
 ## Requirements
 

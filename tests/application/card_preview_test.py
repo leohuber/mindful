@@ -79,7 +79,7 @@ def test_initial_selection_prefers_an_existing_card() -> None:
     selection.update_variants(catalog.variants())
 
     assert selection.ordinal == 1
-    assert selection.side == "front"
+    assert selection.side == "back"
 
 
 def test_selection_and_side_survive_variant_refresh_and_save() -> None:
@@ -87,13 +87,13 @@ def test_selection_and_side_survive_variant_refresh_and_save() -> None:
     selection = PreviewSelection()
     selection.update_variants(catalog.variants())
     selection.select_variant(1)
-    selection.select_side("back")
+    selection.select_side("front")
 
     catalog.available = (CardVariant(0, "Cloze 1", True), CardVariant(1, "Cloze 2", True))
     selection.update_variants(catalog.variants())
 
     assert selection.ordinal == 1
-    assert selection.side == "back"
+    assert selection.side == "front"
     assert selection.variants[1].exists
 
 
@@ -101,12 +101,23 @@ def test_removed_selection_falls_back_to_first_existing_card() -> None:
     selection = PreviewSelection()
     selection.update_variants((CardVariant(0, "First", False), CardVariant(1, "Second", True), CardVariant(2, "Third", False)))
     selection.select_variant(2)
-    selection.select_side("back")
+    selection.select_side("front")
 
     selection.update_variants((CardVariant(0, "First", False), CardVariant(1, "Second", True)))
 
     assert selection.ordinal == 1
-    assert selection.side == "front"
+    assert selection.side == "back"
+
+
+def test_selecting_another_card_shows_its_back() -> None:
+    selection = PreviewSelection()
+    selection.update_variants((CardVariant(0, "First", True), CardVariant(1, "Second", True)))
+    selection.select_side("front")
+
+    selection.select_variant(1)
+
+    assert selection.ordinal == 1
+    assert selection.side == "back"
 
 
 def test_empty_selection_recovers_when_preview_only_variant_appears() -> None:
@@ -116,7 +127,7 @@ def test_empty_selection_recovers_when_preview_only_variant_appears() -> None:
 
     selection.update_variants((CardVariant(3, "Cloze 4", False),))
     assert selection.ordinal == 3
-    assert selection.side == "front"
+    assert selection.side == "back"
 
 
 def test_unavailable_variant_cannot_be_selected() -> None:
@@ -130,12 +141,12 @@ def test_preview_renders_the_draft_without_changing_the_opened_snapshot() -> Non
     source = PreviewSource(snapshot)
     controller = PreviewController(source)
     draft = NoteDraft.from_snapshot(snapshot)
-    draft.set_text(1, "new *back*")
+    draft.set_text(1, "<div>new</div>\n<div>back</div>")
 
     rendered = controller.render(draft)
 
-    assert rendered == RenderedCard("<strong>front</strong>", "new <i>back</i>")
-    assert source.session.requests == [(("<strong>front</strong>", "new <i>back</i>"), 0)]
+    assert rendered == RenderedCard("<strong>front</strong>", "<div>new</div><div>back</div>")
+    assert source.session.requests == [(("<strong>front</strong>", "<div>new</div><div>back</div>"), 0)]
     assert source.snapshot == snapshot
     assert draft.has_changes
 
@@ -193,7 +204,7 @@ def test_rapid_edits_discard_an_older_render_and_show_the_latest_draft() -> None
     controller.invalidate()
 
     def edit_again() -> None:
-        draft.set_text(0, "latest **edit**")
+        draft.set_text(0, "latest <b>edit</b>")
         controller.invalidate()
 
     source.session.on_render = edit_again
@@ -214,13 +225,13 @@ def test_changing_card_and_side_during_render_discards_the_old_result() -> None:
 
     def select_another_card() -> None:
         controller.selection.select_variant(1)
-        controller.selection.select_side("back")
+        controller.selection.select_side("front")
         controller.invalidate()
 
     source.session.on_render = select_another_card
     assert controller.render(draft) is None
     assert controller.selection.ordinal == 1
-    assert controller.selection.side == "back"
+    assert controller.selection.side == "front"
 
     source.session.on_render = None
     assert controller.render(draft) == RenderedCard("front", "front")
@@ -255,7 +266,7 @@ def test_successful_save_reopens_metadata_and_keeps_the_selected_variant_and_sid
     controller.open(snapshot)
     controller.render(NoteDraft.from_snapshot(snapshot))
     controller.selection.select_variant(1)
-    controller.selection.select_side("back")
+    controller.selection.select_side("front")
     before_save = controller.generation
 
     source.snapshot = saved
@@ -266,7 +277,7 @@ def test_successful_save_reopens_metadata_and_keeps_the_selected_variant_and_sid
     assert not controller.is_current(before_save)
     assert rendered == RenderedCard("saved", "saved")
     assert controller.selection.ordinal == 1
-    assert controller.selection.side == "back"
+    assert controller.selection.side == "front"
     assert controller.selection.variants[1].exists
 
 

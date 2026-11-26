@@ -1,9 +1,8 @@
 """Snapshot and draft model for editing one note's fields."""
 
 from dataclasses import dataclass, field
-from typing import Literal
 
-from .markdown_fields import field_presentation, markdown_to_html
+from .html_format import compact_html, format_html
 
 
 @dataclass(frozen=True)
@@ -25,10 +24,9 @@ class FieldDraft:
     """Editor state of one field."""
 
     name: str
-    mode: Literal["markdown", "html"]
+    formatted: bool
     original_text: str
     text: str
-    reason: str = ""
 
     @property
     def changed(self) -> bool:
@@ -39,9 +37,9 @@ class FieldDraft:
         """Convert the editor text to stored HTML.
 
         Returns:
-            Rendered HTML for Markdown fields, or the verbatim text for HTML fields.
+            Compact HTML for fields opened with display formatting, or the verbatim text otherwise.
         """
-        return markdown_to_html(self.text) if self.mode == "markdown" else self.text
+        return compact_html(self.text) if self.formatted else self.text
 
 
 @dataclass
@@ -53,15 +51,16 @@ class NoteDraft:
 
     @classmethod
     def from_snapshot(cls, snapshot: NoteSnapshot) -> "NoteDraft":
-        """Open every field as Markdown when lossless, else as raw HTML.
+        """Open every field as HTML, formatted for reading when that is reversible.
 
         Returns:
             A draft with no changes.
         """
         drafts = []
         for name, html in snapshot.fields:
-            presentation = field_presentation(html)
-            drafts.append(FieldDraft(name, presentation.mode, presentation.text, presentation.text, presentation.reason))
+            formatted = format_html(html)
+            text = html if formatted is None else formatted
+            drafts.append(FieldDraft(name, formatted is not None, text, text))
         return cls(snapshot, drafts)
 
     def set_text(self, index: int, text: str) -> None:

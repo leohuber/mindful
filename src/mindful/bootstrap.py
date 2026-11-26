@@ -3,6 +3,7 @@
 from aqt import mw
 
 from .application.note_editing import NoteEditing
+from .core.editor_settings import resolve_field_font_size
 from .core.shortcuts import resolve_edit_note_shortcut
 from .integration.card_preview import CollectionCardPreview
 from .integration.note_store import CollectionNoteStore
@@ -18,4 +19,13 @@ def initialize() -> None:
     main_window = mw
     editing = NoteEditing(CollectionNoteStore(main_window))
     preview = CollectionCardPreview(main_window)
-    BrowserNoteAction(editing, preview, lambda: resolve_edit_note_shortcut(main_window.addonManager.getConfig(_ADDON_MODULE))).register()
+
+    def config() -> object:
+        return main_window.addonManager.getConfig(_ADDON_MODULE)
+
+    BrowserNoteAction(
+        editing,
+        preview,
+        lambda: resolve_edit_note_shortcut(config()),
+        lambda: resolve_field_font_size(config()),
+    ).register()

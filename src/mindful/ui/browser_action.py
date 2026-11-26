@@ -26,11 +26,12 @@ def _action(browser: Browser) -> QAction | None:
 class BrowserNoteAction:
     """Adds the edit action to Browser menus and opens a single editor window."""
 
-    def __init__(self, editing: NoteEditing, preview: CardPreview, shortcut: Callable[[], str]) -> None:
-        """Open notes through `editing` and `preview`, reading the shortcut for each new Browser."""
+    def __init__(self, editing: NoteEditing, preview: CardPreview, shortcut: Callable[[], str], field_font_size: Callable[[], int]) -> None:
+        """Open notes through `editing` and `preview`, reading the shortcut for each new Browser and the font size for each new window."""
         self._editing = editing
         self._preview = preview
         self._shortcut = shortcut
+        self._field_font_size = field_font_size
         self._window: NoteEditorWindow | None = None
 
     def register(self) -> None:
@@ -68,7 +69,7 @@ class BrowserNoteAction:
         if note_id is None:
             return
         if self._window is None or self._window.parentWidget() is not browser:
-            window = NoteEditorWindow(browser, self._editing, self._preview)
+            window = NoteEditorWindow(browser, self._editing, self._preview, self._field_font_size())
             qconnect(window.destroyed, lambda: self._forget(window))
             self._window = window
         self._window.open_note(note_id)

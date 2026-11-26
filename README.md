@@ -10,23 +10,30 @@ An Anki Add-On to Enable Learning Card Management in Anki
    The action is disabled when no note or several notes are selected.
 3. Edit the fields and click **Save**.
 
-The editor shows every field of the note, in the note type's order. Each field is
-labeled **Markdown** or **HTML**:
+The editor shows every field of the note, in the note type's order, as HTML in a
+monospace font with syntax highlighting for tags, attributes, comments, entities,
+cloze deletions and MathJax delimiters.
 
-- **Markdown**: the field uses only bold, italic, inline code, links, images,
-  lists and line breaks, and converts back to the same content. Saving writes
-  standard Anki HTML.
-- **HTML**: the field contains other markup, such as colors, tables or code
-  blocks. It is shown and saved as raw HTML, exactly as typed. Hover over the
-  badge for the reason.
+To make HTML easier to read, the editor puts block elements such as `<div>`,
+`<p>`, list items and table rows on their own lines, indents nested blocks, and
+starts a new line after `<br>`. This formatting is for display only: saving
+removes the added line breaks and indentation again, so the stored HTML and the
+rendered card stay the same. Inline markup, `<pre>`, `<code>`, `<script>`,
+`<style>` and `<textarea>` are never reformatted. A field whose HTML cannot be
+formatted and restored exactly, for example because it already contains line
+breaks between blocks, is shown and saved exactly as stored. In a formatted
+field, a line break you type between two blocks or after `<br>` is also removed
+when saving; this only matters for cards whose styling shows line breaks
+(`white-space: pre`).
 
 Cloze deletions (`{{c1::answer::hint}}`), sound tags (`[sound:file.mp3]`),
 MathJax (`\(...\)` and `\[...\]`) and image file names stay unchanged as editable
-text. Notes are never stored as Markdown.
+text.
 
-The card preview on the right updates as you edit, before saving. Drag the divider
-to resize it, choose a card from the **Card** list, and use **Front** and **Back**
-to switch sides. Entries labeled **preview only** are templates or clozes without
+The card preview on the right updates as you edit, before saving. The fields and
+the preview start with equal widths; drag the divider to resize them. The preview
+shows the back of the card by default. Choose a card from the **Card** list, and
+use **Front** and **Back** to switch sides. Entries labeled **preview only** are templates or clozes without
 a saved card; the label does not guarantee that saving will create one. Images
 and MathJax render in the preview, and sound can be played with its play button.
 Editing does not automatically restart audio.
@@ -46,6 +53,10 @@ To change the shortcut, open **Tools > Add-ons**, select Mindful and click
 **Config**. Set `edit_note_shortcut` to another shortcut, such as `Ctrl+Alt+E`,
 or to `""` to remove it. Invalid values fall back to `Ctrl+Shift+O`. The change
 applies to Browser windows opened afterwards.
+
+Set `field_font_size` in the same configuration to change the font size of the
+field editors, from `8` to `48` points (default `14`). Invalid values fall back
+to `14`. The change applies to editor windows opened afterwards.
 
 ## Development setup
 

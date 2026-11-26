@@ -9,8 +9,6 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "anki>=26.9.4",
-    "beautifulsoup4==4.15.0",
-    "markdown==3.11.3",
 ]
 
 [project.scripts]

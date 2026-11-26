@@ -59,7 +59,7 @@ def test_saving_sends_only_changed_fields_with_expected_snapshot() -> None:
     store = InMemoryNoteStore()
     editing = NoteEditing(store)
     draft = editing.open(1)
-    draft.set_text(1, "**new**")
+    draft.set_text(1, "<b>new</b>")
     saved, failed = _save(editing, draft)
     assert store.saves == [(draft.snapshot, {1: "<b>new</b>"})]
     assert failed == []

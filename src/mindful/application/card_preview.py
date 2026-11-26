@@ -86,7 +86,7 @@ class PreviewSelection:
         """Start with no selectable cards."""
         self.variants: tuple[CardVariant, ...] = ()
         self.ordinal: int | None = None
-        self.side: PreviewSide = "front"
+        self.side: PreviewSide = "back"
 
     def update_variants(self, variants: tuple[CardVariant, ...]) -> None:
         """Replace available variants, keeping the selection when possible."""
@@ -97,7 +97,7 @@ class PreviewSelection:
         if first is None and variants:
             first = variants[0]
         self.ordinal = first.ordinal if first is not None else None
-        self.side = "front"
+        self.side = "back"
 
     def select_variant(self, ordinal: int) -> None:
         """Select an available variant, showing its front.
@@ -109,7 +109,7 @@ class PreviewSelection:
             raise ValueError(ordinal)
         if self.ordinal != ordinal:
             self.ordinal = ordinal
-            self.side = "front"
+            self.side = "back"
 
     def select_side(self, side: PreviewSide) -> None:
         """Choose the front or back of the selected card."""

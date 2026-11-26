@@ -597,8 +597,6 @@ version = "0.4.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "anki" },
-    { name = "beautifulsoup4" },
-    { name = "markdown" },
 ]
 
 [package.dev-dependencies]
@@ -614,11 +612,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "anki", specifier = ">=26.9.4" },
-    { name = "beautifulsoup4", specifier = "==4.15.0" },
-    { name = "markdown", specifier = "==3.11.3" },
-]
+requires-dist = [{ name = "anki", specifier = ">=26.9.4" }]
 
 [package.metadata.requires-dev]
 dev = [

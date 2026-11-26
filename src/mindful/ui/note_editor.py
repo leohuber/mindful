@@ -21,6 +21,7 @@ from aqt.qt import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QShowEvent,
     QSignalBlocker,
     QSplitter,
     QStackedWidget,
@@ -38,25 +39,30 @@ from aqt.webview import AnkiWebView, AnkiWebViewKind
 from ..application.card_preview import CardPreview, CardPreviewError, PreviewController, PreviewSide, RenderedCard
 from ..application.note_editing import NoteChangedError, NoteDeletedError, NoteEditing
 from ..core.note_draft import NoteDraft
+from .html_highlighter import HtmlHighlighter
 
 _GEOMETRY_KEY = "mindfulNoteEditor"
 _PREVIEW_EDIT_DELAY_MS = 200
 _PREVIEW_DISPLAY_TIMEOUT_MS = 15000
 _TYPE_ANSWER = re.compile(r"\[\[type:[^]]+\]\]")
 _LOGGER = logging.getLogger(__name__)
-_HTML_MODE_TOOLTIP = (
-    "This field contains markup that Markdown cannot represent without loss, so it is shown and saved exactly as raw HTML.\n\nReason: {reason}"
-)
-_MARKDOWN_MODE_TOOLTIP = "This field is shown as Markdown and saved back as Anki HTML."
+
+
+def _field_font(point_size: int) -> QFont:
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    font.setPointSize(point_size)
+    return font
 
 
 class NoteEditorWindow(QWidget):
-    """Non-modal window editing one note's fields as Markdown or raw HTML."""
+    """Non-modal window editing one note's fields as HTML."""
 
-    def __init__(self, parent: QWidget, editing: NoteEditing, preview: CardPreview) -> None:
-        """Create an empty editor that saves through `editing` and previews through `preview`."""
+    def __init__(self, parent: QWidget, editing: NoteEditing, preview: CardPreview, field_font_size: int) -> None:
+        """Create an empty editor that saves through `editing`, previews through `preview` and shows fields at `field_font_size` points."""
         super().__init__(parent, Qt.WindowType.Window)
         self._editing = editing
+        self._field_font = _field_font(field_font_size)
+        self._split_initialized = False
         self._preview = PreviewController(preview)
         self._draft: NoteDraft | None = None
         self._editors: list[QPlainTextEdit] = []
@@ -76,7 +82,7 @@ class NoteEditorWindow(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(self._fields)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter = splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
         scroll.setMinimumWidth(200)
         splitter.addWidget(scroll)
@@ -101,7 +107,7 @@ class NoteEditorWindow(QWidget):
             qconnect(close_button.clicked, self.close)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(splitter, 1)
+        layout.addWidget(self._splitter, 1)
         layout.addWidget(buttons)
         restoreGeom(self, _GEOMETRY_KEY, default_size=(1050, 600))
         parent.installEventFilter(self)
@@ -211,18 +217,14 @@ class NoteEditorWindow(QWidget):
             font = QFont(name.font())
             font.setBold(True)
             name.setFont(font)
-            badge = QLabel("Markdown" if field.mode == "markdown" else "HTML")
-            badge.setToolTip(_MARKDOWN_MODE_TOOLTIP if field.mode == "markdown" else _HTML_MODE_TOOLTIP.format(reason=field.reason))
-            badge.setStyleSheet("border: 1px solid palette(mid); border-radius: 3px; padding: 0 4px;")
             header_layout.addWidget(name)
-            header_layout.addWidget(badge)
             header_layout.addStretch()
 
             editor = QPlainTextEdit()
+            editor.setFont(self._field_font)
+            HtmlHighlighter(editor.document())
             editor.setPlainText(field.text)
             editor.setTabChangesFocus(True)
-            if field.mode == "html":
-                editor.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
             qconnect(editor.textChanged, lambda i=index, e=editor: self._on_text_changed(i, e))
             self._fields_layout.addWidget(header)
             self._fields_layout.addWidget(editor)
@@ -445,6 +447,18 @@ class NoteEditorWindow(QWidget):
         else:
             message = f"The note could not be saved: {error}"
         showWarning(message, parent=self, title="Mindful")
+
+    @override
+    def showEvent(self, event: QShowEvent | None) -> None:
+        """Split the fields and preview equally the first time the window is shown."""
+        super().showEvent(event)
+        if not self._split_initialized:
+            self._split_initialized = True
+            QTimer.singleShot(0, self._split_equally)
+
+    def _split_equally(self) -> None:
+        half = max(self._splitter.width() // 2, 1)
+        self._splitter.setSizes([half, half])
 
     @override
     def closeEvent(self, event: QCloseEvent | None) -> None:
