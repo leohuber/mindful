@@ -1,17 +1,18 @@
-import importlib.util
+import importlib
 import stat
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile, ZipInfo
 
 import pytest
 
-spec = importlib.util.spec_from_file_location("dev_install", Path(__file__).resolve().parents[1] / "scripts" / "dev_install.py")
-assert spec is not None
-assert spec.loader is not None
-dev_install = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(dev_install)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+try:
+    dev_install = importlib.import_module("scripts.dev_install")
+finally:
+    sys.path.pop(0)
 
 
 def test_build_installs_archive_in_new_base_without_touching_normal_installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,6 +95,8 @@ def session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(dev_install, "anki_is_running", lambda: False)
     monkeypatch.setattr(dev_install.tempfile, "mkdtemp", lambda **kwargs: str(base))
     monkeypatch.setattr(dev_install, "build_and_install", lambda path: events.append(("build", path)))
+    monkeypatch.setattr(dev_install.dev_profile, "initialize_preferences", lambda path: None)
+    monkeypatch.setattr(dev_install.dev_snapshot, "seed_snapshot", lambda path: False)
     monkeypatch.setattr(dev_install, "process_group_exists", lambda pid: False)
 
     def launch(path: str, args: list[str], env: dict[str, str], *, setsid: bool) -> int:
@@ -114,12 +117,57 @@ def test_successful_session_launches_with_isolated_base_and_cleans_up(session: S
     assert session.events[0] == ("build", session.base)
     _, path, args, env, isolated = session.events[1]
     assert path == str(session.anki)
-    assert args == [str(session.anki), "--base", str(session.base)]
+    assert args == [str(session.anki), "--base", str(session.base), "--profile", "Mindful Dev", "--lang", "en"]
     assert env["ANKI_SINGLE_INSTANCE_KEY"].startswith("mindful-dev-")
     assert isolated is True
     assert session.events[2] == "wait"
     assert not session.base.exists()
     assert "discarded" in capsys.readouterr().out
+
+
+def test_snapshot_mode_seeds_owned_profile(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    seeded = []
+
+    def seed(path: Path) -> bool:
+        seeded.append(path)
+        return True
+
+    monkeypatch.setattr(dev_install.dev_snapshot, "seed_snapshot", seed)
+    assert dev_install.run() == 0
+    assert seeded == [session.base / "Mindful Dev"]
+    assert "Development data: snapshot" in capsys.readouterr().out
+
+
+def test_empty_mode_never_accesses_snapshot(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def fail(_path: Path) -> bool:
+        msg = "snapshot must not be accessed"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(dev_install.dev_snapshot, "seed_snapshot", fail)
+    assert dev_install.run(empty=True) == 0
+    assert "Development data: empty" in capsys.readouterr().out
+
+
+def test_invalid_snapshot_stops_before_launch(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(_path: Path) -> bool:
+        msg = "invalid snapshot"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(dev_install.dev_snapshot, "seed_snapshot", fail)
+    assert dev_install.run() == 1
+    assert session.events == [("build", session.base)]
+    assert session.base.exists()
+
+
+def test_preferences_failure_stops_before_launch(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(_path: Path) -> None:
+        msg = "invalid preferences"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(dev_install.dev_profile, "initialize_preferences", fail)
+    assert dev_install.run() == 1
+    assert session.events == [("build", session.base)]
+    assert session.base.exists()
 
 
 def test_running_anki_prevents_build_or_launch(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -189,7 +237,9 @@ def test_failed_anki_exit_retains_base(session: SimpleNamespace, result: int) ->
     assert session.base.exists()
 
 
-def test_uncertain_session_retains_base(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("seeded", [False, True])
+def test_uncertain_session_retains_base(session: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, seeded: bool) -> None:
+    monkeypatch.setattr(dev_install.dev_snapshot, "seed_snapshot", lambda path: seeded)
     monkeypatch.setattr(dev_install, "process_group_exists", lambda pid: True)
     assert dev_install.run() == 1
     assert session.base.exists()

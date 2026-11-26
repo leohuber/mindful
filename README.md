@@ -207,6 +207,36 @@ the archive, and restart Anki. For a local build, the archive is
 `dist/mindful.ankiaddon`. The standalone archive is also the file to upload
 manually to [AnkiWeb](https://ankiweb.net/shared/addons).
 
+### Create or refresh a development snapshot
+
+With Anki closed, capture the desired production profile by name:
+
+```sh
+./scripts/dev_snapshot.sh --profile "User 1"
+```
+
+By default the source is `~/Library/Application Support/Anki2`. For a custom
+Anki base, add `--anki-base "/path/to/Anki2"`. Keep Anki closed throughout
+capture. The command copies the selected collection and media, not production
+preferences, sync credentials, add-ons, or backups. Run it again explicitly
+whenever you want to refresh the snapshot; development sessions never refresh
+it automatically.
+
+The reusable copy is stored at
+`~/Library/Application Support/Mindful/dev-snapshot`, outside this checkout.
+It contains private notes and media: protect it, keep it out of source control
+and releases, and allow enough disk space for the snapshot and each working
+copy. Source changes detected during capture abort the refresh; keep Anki
+closed rather than relying on these checks as a filesystem lock.
+
+If replacement is interrupted, the command may report a
+`dev-snapshot.recovery` directory alongside `dev-snapshot`. With Anki closed
+and no snapshot command running, inspect both paths before deciding which
+generation to retain. If only the recovery directory exists, rename it to
+`dev-snapshot`; if both exist, move the unwanted generation to a separate
+safe location before restoring the desired one. Do not remove production
+files or blindly overwrite either generation.
+
 ### Temporary macOS development session
 
 With the development environment installed and Anki closed, run:
@@ -216,16 +246,28 @@ With the development environment installed and Anki closed, run:
 ```
 
 The command requires Anki Desktop 26.09.4 or newer at
-`/Applications/Anki.app`. It builds the archive and launches Anki with an
-empty, temporary base containing that build. The normal Anki profile and
-installed add-ons are not copied or changed. Keep other Anki instances closed
-while starting the session.
+`/Applications/Anki.app`. It builds the archive and launches Anki in a fresh
+temporary base with a dedicated English profile, without the first-run language
+dialog or profile picker. When a snapshot exists, the command copies its
+collection and media into that profile; otherwise it starts empty. It reports
+the selected mode and never refreshes the snapshot. The normal Anki profile,
+preferences, and installed add-ons are not changed. Keep other Anki instances
+closed while starting the session.
+
+To start empty even when a snapshot exists, for example in automation, use:
+
+```sh
+./scripts/dev_install.sh --empty
+```
 
 The command prints the temporary base path and deletes it after Anki exits
-successfully. **All data created there is disposable.** Do not enable sync:
-it can change remote data. If a session fails or its exit cannot be confirmed,
-the command retains the base and reports its path. Before manually removing
-it, confirm that no Anki process is still using it.
+successfully. **All data created there is disposable**; the reusable snapshot
+is retained unchanged. Automatic collection and media sync are disabled and
+production credentials are not copied. Do not sign in or enable sync: it can
+change remote data. This is not a network sandbox; collection content may
+reference external resources. If a session fails or its exit cannot be
+confirmed, the command retains the base and reports its path. Before manually
+removing it, confirm that no Anki process is still using it.
 
 ### macOS installer bundle
 

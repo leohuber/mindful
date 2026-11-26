@@ -4,6 +4,7 @@ import argparse
 import os
 import runpy
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -12,32 +13,13 @@ from pathlib import Path, PurePosixPath
 from secrets import token_hex
 from zipfile import BadZipFile, ZipFile
 
+from scripts import dev_profile, dev_snapshot
+from scripts.dev_common import anki_is_running
+
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "scripts" / "build_addon.py"
 ARCHIVE = ROOT / "dist" / "mindful.ankiaddon"
 ANKI = Path("/Applications/Anki.app/Contents/MacOS/Anki")
-
-
-def anki_is_running() -> bool:
-    """Inspect macOS processes, failing closed if the listing is unavailable.
-
-    Returns:
-        Whether an Anki process is visible.
-
-    Raises:
-        RuntimeError: The process listing is empty.
-    """
-    result = subprocess.run(
-        ["/bin/ps", "-axo", "comm="],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-    commands = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    if not commands:
-        msg = "Could not determine whether Anki is running."
-        raise RuntimeError(msg)
-    return any(command.strip().rsplit("/", 1)[-1].casefold() == "anki" for command in commands)
 
 
 def require_anki_closed() -> None:
@@ -132,7 +114,8 @@ def launch_anki(base: Path) -> None:
     require_anki_closed()
     env = os.environ.copy()
     env["ANKI_SINGLE_INSTANCE_KEY"] = f"mindful-dev-{token_hex(16)}"
-    pid = os.posix_spawn(str(ANKI), [str(ANKI), "--base", str(base)], env, setsid=True)
+    args = [str(ANKI), "--base", str(base), "--profile", dev_profile.PROFILE, "--lang", "en"]
+    pid = os.posix_spawn(str(ANKI), args, env, setsid=True)
     _, status = os.waitpid(pid, 0)
     result = os.waitstatus_to_exitcode(status)
     if result != 0:
@@ -143,7 +126,7 @@ def launch_anki(base: Path) -> None:
         raise RuntimeError(msg)
 
 
-def run() -> int:
+def run(*, empty: bool = False) -> int:
     """Build and launch an isolated Anki session.
 
     Returns:
@@ -159,11 +142,14 @@ def run() -> int:
         sys.stdout.write("This base is disposable. Do not enable sync; it can affect remote data.\n")
         sys.stdout.flush()
         build_and_install(base)
+        dev_profile.initialize_preferences(base)
+        seeded = not empty and dev_snapshot.seed_snapshot(base / dev_profile.PROFILE)
+        sys.stdout.write(f"Development data: {'snapshot' if seeded else 'empty'}\n")
         sys.stdout.flush()
         launch_anki(base)
         remove_owned_base(base, identity)
         sys.stdout.write("Temporary Anki base removed; its test data was discarded.\n")
-    except (BadZipFile, KeyboardInterrupt, OSError, RuntimeError, subprocess.SubprocessError, ValueError) as exc:
+    except (BadZipFile, ImportError, KeyboardInterrupt, OSError, RuntimeError, sqlite3.Error, subprocess.SubprocessError, ValueError) as exc:
         sys.stderr.write(f"Development session failed: {exc or 'interrupted'}\n")
         if base is not None:
             sys.stderr.write(f"Temporary base retained for inspection: {base}\n")
@@ -174,8 +160,9 @@ def run() -> int:
 def main() -> None:
     """Parse command-line arguments and run the development session."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
-    sys.exit(run())
+    parser.add_argument("--empty", action="store_true", help="start without using the saved snapshot")
+    args = parser.parse_args()
+    sys.exit(run(empty=args.empty))
 
 
 if __name__ == "__main__":
