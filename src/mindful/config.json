@@ -1,4 +1,6 @@
 {
     "edit_note_shortcut": "Ctrl+Shift+O",
-    "field_font_size": 14
+    "field_font_size": 14,
+    "next_note_shortcut": "Ctrl+Alt+Right",
+    "previous_note_shortcut": "Ctrl+Alt+Left"
 }

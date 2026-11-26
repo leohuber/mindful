@@ -49,10 +49,23 @@ opened it, nothing is saved and your edits stay in the editor. Closing the edito
 opening another note, or closing the Browser with unsaved edits asks before
 discarding them.
 
+Use **< Previous** and **Next >** at the bottom of the editor, or press
+`Ctrl+Alt+Left` and `Ctrl+Alt+Right` (`Cmd+Option+Left` and `Cmd+Option+Right` on
+macOS), to open the note before or after the Browser's current row. The Browser
+selects that note's row, and in card mode further cards of the same note are
+skipped. The shortcuts also work while typing in a field; plain arrow keys still
+move the text cursor. A button is disabled when the Browser has no row in that
+direction. Moving asks before discarding unsaved edits and never saves them.
+
 To change the shortcut, open **Tools > Add-ons**, select Mindful and click
 **Config**. Set `edit_note_shortcut` to another shortcut, such as `Ctrl+Alt+E`,
 or to `""` to remove it. Invalid values fall back to `Ctrl+Shift+O`. The change
 applies to Browser windows opened afterwards.
+
+Set `previous_note_shortcut` and `next_note_shortcut` in the same configuration
+to change the editor's navigation shortcuts, or to `""` to remove them. Invalid
+values fall back to `Ctrl+Alt+Left` and `Ctrl+Alt+Right`. The change applies to
+editor windows opened afterwards.
 
 Set `field_font_size` in the same configuration to change the font size of the
 field editors, from `8` to `48` points (default `14`). Invalid values fall back

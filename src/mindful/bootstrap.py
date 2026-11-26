@@ -4,7 +4,7 @@ from aqt import mw
 
 from .application.note_editing import NoteEditing
 from .core.editor_settings import resolve_field_font_size
-from .core.shortcuts import resolve_edit_note_shortcut
+from .core.shortcuts import resolve_edit_note_shortcut, resolve_next_note_shortcut, resolve_previous_note_shortcut
 from .integration.card_preview import CollectionCardPreview
 from .integration.note_store import CollectionNoteStore
 from .ui.browser_action import BrowserNoteAction
@@ -28,4 +28,5 @@ def initialize() -> None:
         preview,
         lambda: resolve_edit_note_shortcut(config()),
         lambda: resolve_field_font_size(config()),
+        lambda: (resolve_previous_note_shortcut(config()), resolve_next_note_shortcut(config())),
     ).register()

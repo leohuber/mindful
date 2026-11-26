@@ -3,7 +3,9 @@
 import json
 import logging
 import re
-from typing import override
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Literal, Protocol, override
 
 import aqt
 from aqt import gui_hooks
@@ -16,11 +18,13 @@ from aqt.qt import (
     QFont,
     QFontDatabase,
     QHBoxLayout,
+    QKeySequence,
     QLabel,
     QObject,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QShortcut,
     QShowEvent,
     QSignalBlocker,
     QSplitter,
@@ -48,6 +52,30 @@ _TYPE_ANSWER = re.compile(r"\[\[type:[^]]+\]\]")
 _LOGGER = logging.getLogger(__name__)
 
 
+type NavigationDirection = Literal["previous", "next"]
+
+
+class NoteNavigator(Protocol):
+    """Finds the note before or after the current one in the editor's source list."""
+
+    def can_move(self, direction: NavigationDirection) -> bool:
+        """Whether a row exists in `direction`."""
+        ...
+
+    def move(self, direction: NavigationDirection, on_moved: Callable[[int | None], None]) -> None:
+        """Select the nearest different note in `direction` and call `on_moved` with its id, or None if there is none."""
+        ...
+
+
+@dataclass(frozen=True)
+class NoteNavigation:
+    """How the editor moves to the previous or next note, with optional keyboard shortcuts."""
+
+    navigator: NoteNavigator
+    previous_shortcut: str = ""
+    next_shortcut: str = ""
+
+
 def _field_font(point_size: int) -> QFont:
     font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
     font.setPointSize(point_size)
@@ -60,10 +88,21 @@ class NoteEditorWindow(QWidget):
     # Holds the highlighters so Python does not garbage-collect them.
     _highlighters: list[HtmlHighlighter]
 
-    def __init__(self, parent: QWidget, editing: NoteEditing, preview: CardPreview, field_font_size: int) -> None:
-        """Create an empty editor that saves through `editing`, previews through `preview` and shows fields at `field_font_size` points."""
+    def __init__(
+        self,
+        parent: QWidget,
+        editing: NoteEditing,
+        preview: CardPreview,
+        field_font_size: int,
+        navigation: NoteNavigation | None = None,
+    ) -> None:
+        """Create an empty editor that saves through `editing`, previews through `preview` and shows fields at `field_font_size` points.
+
+        With `navigation`, the editor offers previous and next controls that move through its navigator.
+        """
         super().__init__(parent, Qt.WindowType.Window)
         self._editing = editing
+        self._navigator = navigation.navigator if navigation is not None else None
         self._field_font = _field_font(field_font_size)
         self._split_initialized = False
         self._preview = PreviewController(preview)
@@ -100,6 +139,31 @@ class NoteEditorWindow(QWidget):
         self._preview_timeout.setSingleShot(True)
         qconnect(self._preview_timeout.timeout, self._on_preview_timeout)
 
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._splitter, 1)
+        layout.addLayout(self._create_bottom_row(navigation))
+        restoreGeom(self, _GEOMETRY_KEY, default_size=(1050, 600))
+        parent.installEventFilter(self)
+        self._sync_preview_controls()
+        self._update_state()
+
+    def _create_bottom_row(self, navigation: NoteNavigation | None) -> QHBoxLayout:
+        self._previous_button = QPushButton("< Previous")
+        self._next_button = QPushButton("Next >")
+        for button, text, shortcut, direction in (
+            (self._previous_button, "Previous note", navigation.previous_shortcut if navigation else "", "previous"),
+            (self._next_button, "Next note", navigation.next_shortcut if navigation else "", "next"),
+        ):
+            button.setAutoDefault(False)
+            button.setVisible(navigation is not None)
+            qconnect(button.clicked, lambda _checked=False, d=direction: self._navigate(d))
+            tip = text
+            if shortcut:
+                key = QKeySequence(shortcut)
+                qconnect(QShortcut(key, self).activated, lambda d=direction: self._navigate(d))
+                tip = f"{text} ({key.toString(QKeySequence.SequenceFormat.NativeText)})"
+            button.setToolTip(tip)
+
         buttons = QDialogButtonBox()
         self._save_button = QPushButton("Save")
         self._save_button.setDefault(True)
@@ -109,13 +173,11 @@ class NoteEditorWindow(QWidget):
         if close_button is not None:
             qconnect(close_button.clicked, self.close)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(self._splitter, 1)
-        layout.addWidget(buttons)
-        restoreGeom(self, _GEOMETRY_KEY, default_size=(1050, 600))
-        parent.installEventFilter(self)
-        self._sync_preview_controls()
-        self._update_state()
+        row = QHBoxLayout()
+        row.addWidget(self._previous_button)
+        row.addWidget(self._next_button)
+        row.addWidget(buttons, 1)
+        return row
 
     def _create_preview_panel(self) -> QWidget:
         preview_panel = QWidget()
@@ -180,6 +242,9 @@ class NoteEditorWindow(QWidget):
         if self._saving or not self.confirm_discard():
             self._raise()
             return
+        self._load_note(note_id)
+
+    def _load_note(self, note_id: int) -> None:
         try:
             draft = self._editing.open(note_id)
         except NoteDeletedError:
@@ -187,6 +252,29 @@ class NoteEditorWindow(QWidget):
             return
         self._show_draft(draft)
         self._raise()
+
+    def update_navigation(self) -> None:
+        """Enable the previous and next controls when the navigator can move in their direction."""
+        for button, direction in ((self._previous_button, "previous"), (self._next_button, "next")):
+            button.setEnabled(self._can_navigate(direction))
+
+    def _can_navigate(self, direction: NavigationDirection) -> bool:
+        return self._navigator is not None and self._draft is not None and not self._saving and self._navigator.can_move(direction)
+
+    def _navigate(self, direction: NavigationDirection) -> None:
+        navigator = self._navigator
+        if navigator is None or not self._can_navigate(direction) or not self.confirm_discard():
+            return
+        navigator.move(direction, lambda note_id: self._on_navigated(direction, note_id))
+
+    def _on_navigated(self, direction: NavigationDirection, note_id: int | None) -> None:
+        if self._draft is None:
+            return
+        if note_id is None:
+            tooltip(f"There is no {direction} note.", parent=self)
+            self.update_navigation()
+            return
+        self._load_note(note_id)
 
     def _raise(self) -> None:
         self.show()
@@ -425,6 +513,7 @@ class NoteEditorWindow(QWidget):
             editor.setReadOnly(self._saving)
         marker = " *" if self.has_unsaved_changes else ""
         self.setWindowTitle(f"Mindful: Edit Note{marker}")
+        self.update_navigation()
 
     def _save(self) -> None:
         if self._draft is None or not self.has_unsaved_changes or self._saving:
