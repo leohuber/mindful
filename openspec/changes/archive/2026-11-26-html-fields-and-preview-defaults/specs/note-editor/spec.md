@@ -149,6 +149,34 @@ The preview SHALL let the user select any existing card of the note and switch b
 - **WHEN** the user edits a field and that card remains available
 - **THEN** the preview refreshes the same card's front
 
+### Requirement: Preview reflects the current draft
+
+The preview SHALL update automatically from the current draft without requiring a save. Changed fields SHALL use the HTML a save would produce; unchanged fields SHALL use their exact stored HTML. A stale render MUST NOT replace a newer draft, card, side, or note.
+
+#### Scenario: Edit a formatted field
+- **GIVEN** the selected card includes a field shown with readable formatting
+- **WHEN** the user changes the field's HTML
+- **THEN** the selected card updates before the note is saved, using the compact HTML a save would produce
+
+#### Scenario: Edit a field shown as stored
+- **GIVEN** the selected card includes a field shown exactly as stored
+- **WHEN** the user changes the field's HTML
+- **THEN** the selected card updates using the HTML as typed
+
+#### Scenario: Preserve an unchanged field's exact markup
+- **GIVEN** an unchanged field contains `<strong>text</strong>` and the card styling distinguishes `strong` from `b`
+- **WHEN** the preview renders the card
+- **THEN** it uses the stored `strong` markup instead of a normalized form
+
+#### Scenario: Edits arrive faster than rendering
+- **WHEN** the user makes successive edits or changes the selected card, side, or note before an earlier preview finishes
+- **THEN** the pane eventually shows only the latest requested state
+
+#### Scenario: Switch notes
+- **GIVEN** the user confirms discarding edits and opens another note
+- **WHEN** the new note is displayed
+- **THEN** its preview replaces the previous note's preview
+
 ## REMOVED Requirements
 
 ### Requirement: Fields convert to Markdown only when lossless
