@@ -593,7 +593,7 @@ wheels = [
 
 [[package]]
 name = "mindful"
-version = "0.5.2.dev0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "anki" },
