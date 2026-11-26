@@ -57,6 +57,9 @@ def _field_font(point_size: int) -> QFont:
 class NoteEditorWindow(QWidget):
     """Non-modal window editing one note's fields as HTML."""
 
+    # Holds the highlighters so Python does not garbage-collect them.
+    _highlighters: list[HtmlHighlighter]
+
     def __init__(self, parent: QWidget, editing: NoteEditing, preview: CardPreview, field_font_size: int) -> None:
         """Create an empty editor that saves through `editing`, previews through `preview` and shows fields at `field_font_size` points."""
         super().__init__(parent, Qt.WindowType.Window)
@@ -209,6 +212,7 @@ class NoteEditorWindow(QWidget):
             if (widget := item.widget()) is not None:
                 widget.deleteLater()
         self._editors = []
+        self._highlighters = []
         for index, field in enumerate(draft.fields):
             header = QWidget()
             header_layout = QHBoxLayout(header)
@@ -222,7 +226,7 @@ class NoteEditorWindow(QWidget):
 
             editor = QPlainTextEdit()
             editor.setFont(self._field_font)
-            HtmlHighlighter(editor.document())
+            self._highlighters.append(HtmlHighlighter(editor.document()))
             editor.setPlainText(field.text)
             editor.setTabChangesFocus(True)
             qconnect(editor.textChanged, lambda i=index, e=editor: self._on_text_changed(i, e))

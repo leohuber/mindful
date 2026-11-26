@@ -26,7 +26,7 @@
 
 - [x] 5.1 Update `README.md`: HTML editing, readable formatting and compaction on save (including the deliberate-newline caveat), syntax highlighting, `field_font_size`, the equal split and the back-side default. Verify that the README no longer mentions Markdown mode
 - [x] 5.2 Update the Purpose of `openspec/specs/note-editor/spec.md` to describe HTML editing instead of Markdown. Verify with `openspec validate --specs`
-- [ ] 5.3 Run the `mindful_check_code_quality` skill (pytest, Ruff, Pyrefly, import-linter), then open a note in Anki with block, inline, cloze and MathJax content. Verify that the checks pass, opening and closing without edits writes nothing, and an edited formatted field saves compact HTML with an unchanged rendered card
+- [x] 5.3 Run the `mindful_check_code_quality` skill (pytest, Ruff, Pyrefly, import-linter), then open a note in Anki with block, inline, cloze and MathJax content. Verify that the checks pass, opening and closing without edits writes nothing, and an edited formatted field saves compact HTML with an unchanged rendered card
 
 ## Workflow follow-up
 
