@@ -207,6 +207,26 @@ the archive, and restart Anki. For a local build, the archive is
 `dist/mindful.ankiaddon`. The standalone archive is also the file to upload
 manually to [AnkiWeb](https://ankiweb.net/shared/addons).
 
+### Temporary macOS development session
+
+With the development environment installed and Anki closed, run:
+
+```sh
+./scripts/dev_install.sh
+```
+
+The command requires Anki Desktop 26.09.4 or newer at
+`/Applications/Anki.app`. It builds the archive and launches Anki with an
+empty, temporary base containing that build. The normal Anki profile and
+installed add-ons are not copied or changed. Keep other Anki instances closed
+while starting the session.
+
+The command prints the temporary base path and deletes it after Anki exits
+successfully. **All data created there is disposable.** Do not enable sync:
+it can change remote data. If a session fails or its exit cannot be confirmed,
+the command retains the base and reports its path. Before manually removing
+it, confirm that no Anki process is still using it.
+
 ### macOS installer bundle
 
 The release ZIP contains `install.sh` and the same standalone `.ankiaddon`.
